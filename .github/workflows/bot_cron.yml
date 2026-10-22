@@ -28,23 +28,10 @@ jobs:
         python -m pip install --upgrade pip
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
-    # WYMUSZENIE POPRAWNYCH DANYCH: Nadpisujemy zmienne bezpośrednio w środowisku systemu
     - name: Run Bot Script
       env:
-        TELEGRAM_TOKEN: "8933900136:AAGPxiJd2EbGqIXJl2wbr6HWOCwSEsa9TO4"
         RSS_JSON_URL: ${{ secrets.RSS_JSON_URL }}
-      run: |
-        # Dynamiczna naprawa starego pliku bot.py w locie przed jego uruchomieniem
-        python -c "
-        with open('bot.py', 'r', encoding='utf-8') as f:
-            text = f.read()
-        # Wycinamy błędny ciąg z adresu URL, który powodował crash w starej wersji
-        text = text.replace('https://telegram.orgukryty_token', 'https://telegram.org')
-        text = text.replace('https://telegram.org', 'https://telegram.org')
-        with open('bot.py', 'w', encoding='utf-8') as f:
-            f.write(text)
-        "
-        python bot.py
+      run: python bot.py
 
     - name: Commit and Push changes
       uses: stefanzweifel/git-auto-commit-action@v5
