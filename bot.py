@@ -44,35 +44,38 @@ def main():
     linki_rss = [l.strip() for l in URL_RAW.split(",") if l.strip().startswith("http")]
     licznik_wyslanych = 0
 
+    # Podrobienie nagłówka prawdziwej przeglądarki (często rozwiązuje problem blokad)
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+
     for nr, url in enumerate(linki_rss, 1):
         print(f"Skanuję źródło {nr}/{len(linki_rss)}...")
         try:
-            response = requests.get(url, timeout=15)
-            if response.status_code != 200:
-                print(f"   -> Błąd statusu: {response.status_code}")
+            response = requests.get(url, headers=headers, timeout=15)
+            print(f"   -> Kod odpowiedzi serwera: {response.status_code}")
+            
+            # Jeśli serwer nie zwrócił JSON-a, przechwytujemy surowy tekst do logów
+            try:
+                dane = response.json()
+            except Exception as json_err:
+                print(f"   -> [BŁĄD PARSOWANIA] Serwer nie zwrócił JSON-a. Pokazuję początek odpowiedzi:")
+                print(f"--------------------------------------------------")
+                print(response.text[:500])
+                print(f"--------------------------------------------------")
                 continue
-            dane = response.json()
+                
         except Exception as e:
-            print(f"   -> Błąd pobierania JSON: {e}")
+            print(f"   -> Błąd połączenia z serwerem: {e}")
             continue
 
         oferty = dane.get('items', [])
         print(f"   -> Odczytano ofert z JSON: {len(oferty)}")
         
-        # ==========================================
-        # DEBUGOWANIE: Pokazuje dokładną strukturę, żebyśmy zobaczyli nazwy pól
-        if oferty:
-            print("\n🚨 [DEBUG] SUROWA STRUKTURA PIERWSZEJ OFERTY:")
-            import json
-            print(json.dumps(oferty[0], indent=4, ensure_ascii=False))
-            print("🚨 [DEBUG] KONIEC PODGLĄDU\n")
-        # ==========================================
-
         pierwsze_uruchomienie = len(wyslane_ogloszenia) == 0
 
-        for oferta in oferty:
-            # Próba wyciągnięcia czegokolwiek, co może być linkiem lub unikalnym ID
-            link = oferta.get('url') or oferta.get('link') or oferta.get('id') or oferta.get('id_ogloszenia')
+        for oferta in ofertas:
+            link = oferta.get('url') or oferta.get('link') or oferta.get('id')
             tytul = oferta.get('title', 'Brak tytułu').strip()
             
             if not link:
@@ -98,4 +101,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
