@@ -62,7 +62,7 @@ def main():
 
         # UNIKANIE SPAMU: Jeśli plik bazy jest pusty, bot zapisze obecne 25 ofert bez wysyłania.
         # Jeśli chcesz przetestować wysyłkę na żywo, zmień poniższe True na False!
-        pierwsze_uruchomienie = len(wyslane_ogloszenia) == 0
+        pierwsze_uruchomienie = False
         if pierwsze_uruchomienie:
             print("   [INFO] Pierwsze uruchomienie bota. Buduję bazę danych bez spamu...")
 
