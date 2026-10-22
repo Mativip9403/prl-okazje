@@ -22,11 +22,8 @@ def wyslij_telegram(tekst_wiadomosci):
         print("   [TELEGRAM ERROR] Brak zmiennej TELEGRAM_TOKEN w GitHub Secrets!")
         return
         
-    # Czyszczenie tokenu ze zbędnych spacji
-    czysty_token = str(TELEGRAM_TOKEN).strip()
-    
-    # NAPRAWIONY ADRES URL: Zapytania muszą iść na api.telegram.org/bot<TOKEN>/sendMessage
-    telegram_url = f"https://telegram.org{czysty_token}/sendMessage"
+    # Sztywny, niezmienny adres URL - requests nie ma prawa zgłosić błędu hosta telegram.org
+    telegram_url = "https://telegram.org" + str(TELEGRAM_TOKEN).strip() + "/sendMessage"
     
     payload = {
         "chat_id": str(MOJ_CHAT_ID).strip(), 
@@ -38,10 +35,10 @@ def wyslij_telegram(tekst_wiadomosci):
         res = requests.post(telegram_url, json=payload, timeout=12)
         print(f"   [SUROWY WYNIK TELEGRAMA] -> {res.text}")
     except Exception as e:
-        print(f"   [TELEGRAM CRASH] Szczegóły błędu wysyłki: {e}")
+        print(f"   [TELEGRAM CRASH KRYTYCZNY] Szczegóły błędu wysyłki: {e}")
 
 def main():
-    print("=== START BOT.PY (WERSJA DOCELOWA 24/7) ===")
+    print("=== START BOT.PY (WERSJA BEZPIECZNA URL) ===")
     if not URL_RAW:
         print("Błąd krytyczny: Zmienna RSS_JSON_URL w Secrets jest pusta!")
         return
@@ -72,11 +69,8 @@ def main():
         oferty = root.findall('.//item')
         print(f"   -> Odczytano ofert z RSS: {len(oferty)}")
 
-        # AUTOMATYCZNA BLOKADA: Pierwsze uruchomienie przy pustym pliku buduje bazę bez spamu
-        # Każde kolejne uruchomienie crona wyśle już tylko czyste nowości z OLX
-        pierwsze_uruchomienie = len(wyslane_ogloszenia) == 0
-        if pierwsze_uruchomienie:
-            print("   [INFO] Pierwsze uruchomienie bota. Zapisuję obecne oferty bez wysyłania spamu...")
+        # Aby przetestować wysyłkę tych 9 nowych ofert:
+        pierwsze_uruchomienie = False
 
         for oferta in oferty:
             link_node = oferta.find('link')
@@ -88,8 +82,8 @@ def main():
             if not link:
                 continue
 
-            # Pobieranie czystego linku bez parametrów trackingowych
-            oferta_id = str(link).split('?')[0]
+            # Pobieranie czystego linku
+            oferta_id = str(link).split('?')
 
             if oferta_id not in wyslane_ogloszenia:
                 wyslane_ogloszenia.add(oferta_id)
