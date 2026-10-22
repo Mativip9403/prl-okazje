@@ -70,7 +70,7 @@ def main():
 
         # TRYB AUTOMATYCZNY 24/7: Pierwsze uruchomienie przy pustym pliku buduje bazę bez spamu.
         # Każde kolejne uruchomienie crona (co 15 minut) wyśle tylko PRAWDZIWE nowości.
-        pierwsze_uruchomienie = len(wyslane_ogloszenia) == 0
+        pierwsze_uruchomienie = False
         if pierwsze_uruchomienie:
             print("   [INFO] Pierwsze uruchomienie bota. Buduję bazę danych bez spamu...")
 
