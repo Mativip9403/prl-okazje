@@ -37,13 +37,13 @@ def wyslij_telegram(tekst_wiadomosci):
         print(f"   [TELEGRAM CRASH KRYTYCZNY] Szczegóły błędu wysyłki: {e}")
 
 def main():
-    print("=== START BOT.PY (WERSJA OSTATECZNA - BEZPIECZNY URL) ===")
+    print("=== START BOT.PY (TRYB WYMUSZONEGO TESTU WYSYŁKI) ===")
     if not URL_RAW:
         print("Błąd krytyczny: Zmienna RSS_JSON_URL w GitHub Secrets jest pusta lub uszkodzona!")
         return
 
     wyslane_ogloszenia = wczytaj_baze_wyslanych()
-    print(f"Wczytano {len(wyslane_ogloszenia)} pozycji z bazy.")
+    print(f"Wczytano {len(wyslane_ogloszenia)} pozycji z bazy (ZIGNOROWANO W TRYBIE TESTU).")
 
     # Czyszczenie i wyciąganie prawidłowego linku do OLX ze zmiennej
     linki_rss = [l.strip() for l in URL_RAW.split(",") if l.strip().startswith("http")]
@@ -68,12 +68,6 @@ def main():
         oferty = root.findall('.//item')
         print(f"   -> Odczytano ofert z RSS: {len(oferty)}")
 
-        # TRYB AUTOMATYCZNY 24/7: Pierwsze uruchomienie przy pustym pliku buduje bazę bez spamu.
-        # Każde kolejne uruchomienie crona (co 15 minut) wyśle tylko PRAWDZIWE nowości.
-        pierwsze_uruchomienie = False
-        if pierwsze_uruchomienie:
-            print("   [INFO] Pierwsze uruchomienie bota. Buduję bazę danych bez spamu...")
-
         for oferta in oferty:
             link_node = oferta.find('link')
             tytul_node = oferta.find('title')
@@ -91,20 +85,20 @@ def main():
             # Pobieranie linku jako unikalny tekst (string)
             oferta_id = str(link).split('?')[0]
 
-            if oferta_id not in wyslane_ogloszenia:
-                wyslane_ogloszenia.add(oferta_id)
-                zapisz_do_bazy_wyslanych(oferta_id)
+            # TRYB TESTOWY: Pomijamy sprawdzanie bazy, żeby wymusić wysłanie wszystkiego na raz
+            if True:
+                # Zapisujemy do pliku, żeby baza się aktualizowała w tle
+                if oferta_id not in wyslane_ogloszenia:
+                    wyslane_ogloszenia.add(oferta_id)
+                    zapisz_do_bazy_wyslanych(oferta_id)
 
-                if not pierwsze_uruchomienie:
-                    print(f"   [NOWA OFERTA -> WYSYŁKA] {tytul[:50]}...")
-                    czysty_tytul = tytul.replace("*", "").replace("_", "").replace("[", "").replace("]", "")
-                    wiadomosc = f"🚨 *NOWE OGŁOSZENIE PRL!* 🚨\n\n📌 *{czysty_tytul}*\n🔗 [Otwórz ogłoszenie]({link})"
-                    wyslij_telegram(wiadomosc)
-                    licznik_wyslanych += 1
-                else:
-                    print(f"   [BAZA ZBUDOWANA] Zapisano w historii: {tytul[:40]}...")
+                print(f"   [NOWA OFERTA -> WYSYŁKA] {tytul[:50]}...")
+                czysty_tytul = tytul.replace("*", "").replace("_", "").replace("[", "").replace("]", "")
+                wiadomosc = f"🚨 *NOWE OGŁOSZENIE PRL!* 🚨\n\n📌 *{czysty_tytul}*\n🔗 [Otwórz ogłoszenie]({link})"
+                wyslij_telegram(wiadomosc)
+                licznik_wyslanych += 1
 
-    print(f"=== KONIEC === Wysłano nowych powiadomień: {licznik_wyslanych}")
+    print(f"=== KONIEC TESTU === Wysłano nowych powiadomień: {licznik_wyslanych}")
 
 if __name__ == "__main__":
     main()
