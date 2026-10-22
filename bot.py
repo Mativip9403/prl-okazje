@@ -19,9 +19,13 @@ def zapisz_do_bazy_wyslanych(identyfikator):
 
 def wyslij_telegram(tekst_wiadomosci):
     if not TELEGRAM_TOKEN:
-        print("   [TELEGRAM ERROR] Brak zmiennej TELEGRAM_TOKEN!")
+        print("   [TELEGRAM ERROR] Brak zmiennej TELEGRAM_TOKEN w GitHub Secrets!")
         return
-    telegram_url = f"https://telegram.org{TELEGRAM_TOKEN}/sendMessage"
+        
+    # Czyszczenie tokenu na wypadek, gdyby w Secrets zapisały się zbędne spacje lub śmieci
+    czysty_token = str(TELEGRAM_TOKEN).strip()
+    
+    telegram_url = f"https://telegram.org{czysty_token}/sendMessage"
     payload = {
         "chat_id": MOJ_CHAT_ID, 
         "text": tekst_wiadomosci, 
@@ -31,10 +35,10 @@ def wyslij_telegram(tekst_wiadomosci):
         res = requests.post(telegram_url, json=payload, timeout=10)
         print(f"   [SUROWY WYNIK TELEGRAMA] -> {res.text}")
     except Exception as e:
-        print(f"   [TELEGRAM CRASH] Błąd: {e}")
+        print(f"   [TELEGRAM CRASH] Błąd wysyłki: {e}")
 
 def main():
-    print("=== START BOT.PY (XML / RSS PARSER) ===")
+    print("=== START BOT.PY (WERSJA DOCELOWA) ===")
     if not URL_RAW:
         print("Błąd krytyczny: Zmienna RSS_JSON_URL w Secrets jest pusta!")
         return
@@ -57,22 +61,20 @@ def main():
                 print(f"   -> Błąd statusu serwera: {response.status_code}")
                 continue
             
-            # Parsowanie surowego tekstu XML
             root = ET.fromstring(response.content)
         except Exception as e:
             print(f"   -> Błąd pobierania lub parsowania XML: {e}")
             continue
 
-        # W strukturze RSS XML ogłoszenia znajdują się w tagach <item> wewnątrz <channel>
         oferty = root.findall('.//item')
         print(f"   -> Odczytano ofert z RSS: {len(oferty)}")
-        
+
+        # Przywrócenie blokady spamu: pierwsze uruchomienie tylko buduje bazę
         pierwsze_uruchomienie = len(wyslane_ogloszenia) == 0
         if pierwsze_uruchomienie:
-            print("   [INFO] Pierwsze uruchomienie. Zapisuję historię bez wysyłania spamu...")
+            print("   [INFO] Pierwsze uruchomienie bota. Zapisuję obecne oferty bez wysyłania spamu...")
 
         for oferta in oferty:
-            # Wyciąganie wartości z tagów <link> oraz <title> w strukturze XML
             link_node = oferta.find('link')
             tytul_node = oferta.find('title')
             
@@ -82,8 +84,7 @@ def main():
             if not link:
                 continue
 
-            # Odcięcie parametrów śledzących z linku OLX (wszystko po znaku '?'), by ID było unikalne
-            oferta_id = str(link).split('?')[0]
+            oferta_id = str(link).split('?')
 
             if oferta_id not in wyslane_ogloszenia:
                 wyslane_ogloszenia.add(oferta_id)
@@ -91,7 +92,6 @@ def main():
 
                 if not pierwsze_uruchomienie:
                     print(f"   [NOWA OFERTA -> WYSYŁKA] {tytul}")
-                    # Czyszczenie znaków specjalnych, które psują Markdown na Telegramie
                     czysty_tytul = tytul.replace("*", "").replace("_", "").replace("[", "").replace("]", "")
                     wiadomosc = f"🚨 *NOWE OGŁOSZENIE PRL!* 🚨\n\n📌 *{czysty_tytul}*\n🔗 [Otwórz ogłoszenie]({link})"
                     wyslij_telegram(wiadomosc)
