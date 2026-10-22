@@ -22,8 +22,10 @@ def wyslij_telegram(tekst_wiadomosci):
         print("   [TELEGRAM ERROR] Brak zmiennej TELEGRAM_TOKEN w GitHub Secrets!")
         return
         
-    # Sztywny, niezmienny adres URL - requests nie ma prawa zgłosić błędu hosta telegram.org
-    telegram_url = "https://telegram.org" + str(TELEGRAM_TOKEN).strip() + "/sendMessage"
+    czysty_token = str(TELEGRAM_TOKEN).strip()
+    
+    # Bezpieczne składanie linku API
+    telegram_url = f"https://telegram.org{czysty_token}/sendMessage"
     
     payload = {
         "chat_id": str(MOJ_CHAT_ID).strip(), 
@@ -69,7 +71,8 @@ def main():
         oferty = root.findall('.//item')
         print(f"   -> Odczytano ofert z RSS: {len(oferty)}")
 
-        # Aby przetestować wysyłkę tych 9 nowych ofert:
+        # Dla ciągłego działania (gdy już przetestujesz wysyłkę) zmień na:
+        # pierwsze_uruchomienie = len(wyslane_ogloszenia) == 0
         pierwsze_uruchomienie = False
 
         for oferta in oferty:
@@ -82,8 +85,8 @@ def main():
             if not link:
                 continue
 
-            # Pobieranie czystego linku
-            oferta_id = str(link).split('?')
+            # POPRAWKA: Pobieramy tylko pierwszy element z rozbicia tekstowego (string)
+            oferta_id = str(link).split('?')[0]
 
             if oferta_id not in wyslane_ogloszenia:
                 wyslane_ogloszenia.add(oferta_id)
