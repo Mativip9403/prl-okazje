@@ -22,9 +22,7 @@ def wyslij_telegram(tekst_wiadomosci):
         print("   [TELEGRAM ERROR] Brak zmiennej TELEGRAM_TOKEN w GitHub Secrets!")
         return
         
-    # Czyszczenie tokenu na wypadek, gdyby w Secrets zapisały się zbędne spacje lub śmieci
     czysty_token = str(TELEGRAM_TOKEN).strip()
-    
     telegram_url = f"https://telegram.org{czysty_token}/sendMessage"
     payload = {
         "chat_id": MOJ_CHAT_ID, 
@@ -69,7 +67,6 @@ def main():
         oferty = root.findall('.//item')
         print(f"   -> Odczytano ofert z RSS: {len(oferty)}")
 
-        # Przywrócenie blokady spamu: pierwsze uruchomienie tylko buduje bazę
         pierwsze_uruchomienie = len(wyslane_ogloszenia) == 0
         if pierwsze_uruchomienie:
             print("   [INFO] Pierwsze uruchomienie bota. Zapisuję obecne oferty bez wysyłania spamu...")
@@ -84,7 +81,8 @@ def main():
             if not link:
                 continue
 
-            oferta_id = str(link).split('?')
+            # POPRAWKA: Pobieramy tekst przed znakiem '?' jako czysty string, a nie listę
+            oferta_id = str(link).split('?')[0]
 
             if oferta_id not in wyslane_ogloszenia:
                 wyslane_ogloszenia.add(oferta_id)
