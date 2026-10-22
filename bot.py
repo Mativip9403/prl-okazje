@@ -1,5 +1,6 @@
 import os
 import requests
+import xml.etree.ElementTree as ET
 
 MOJ_CHAT_ID = "6610333161"
 URL_RAW = os.environ.get('RSS_JSON_URL')
@@ -33,7 +34,7 @@ def wyslij_telegram(tekst_wiadomosci):
         print(f"   [TELEGRAM CRASH] Błąd: {e}")
 
 def main():
-    print("=== START BOT.PY ===")
+    print("=== START BOT.PY (XML / RSS PARSER) ===")
     if not URL_RAW:
         print("Błąd krytyczny: Zmienna RSS_JSON_URL w Secrets jest pusta!")
         return
@@ -44,7 +45,6 @@ def main():
     linki_rss = [l.strip() for l in URL_RAW.split(",") if l.strip().startswith("http")]
     licznik_wyslanych = 0
 
-    # Podrobienie nagłówka prawdziwej przeglądarki (często rozwiązuje problem blokad)
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
     }
@@ -53,37 +53,36 @@ def main():
         print(f"Skanuję źródło {nr}/{len(linki_rss)}...")
         try:
             response = requests.get(url, headers=headers, timeout=15)
-            print(f"   -> Kod odpowiedzi serwera: {response.status_code}")
-            
-            # Jeśli serwer nie zwrócił JSON-a, przechwytujemy surowy tekst do logów
-            try:
-                dane = response.json()
-            except Exception as json_err:
-                print(f"   -> [BŁĄD PARSOWANIA] Serwer nie zwrócił JSON-a. Pokazuję początek odpowiedzi:")
-                print(f"--------------------------------------------------")
-                print(response.text[:500])
-                print(f"--------------------------------------------------")
+            if response.status_code != 200:
+                print(f"   -> Błąd statusu serwera: {response.status_code}")
                 continue
-                
+            
+            # Parsowanie surowego tekstu XML
+            root = ET.fromstring(response.content)
         except Exception as e:
-            print(f"   -> Błąd połączenia z serwerem: {e}")
+            print(f"   -> Błąd pobierania lub parsowania XML: {e}")
             continue
 
-        oferty = dane.get('items', [])
-        print(f"   -> Odczytano ofert z JSON: {len(oferty)}")
+        # W strukturze RSS XML ogłoszenia znajdują się w tagach <item> wewnątrz <channel>
+        oferty = root.findall('.//item')
+        print(f"   -> Odczytano ofert z RSS: {len(oferty)}")
         
         pierwsze_uruchomienie = len(wyslane_ogloszenia) == 0
+        if pierwsze_uruchomienie:
+            print("   [INFO] Pierwsze uruchomienie. Zapisuję historię bez wysyłania spamu...")
 
-        for oferta in ofertas:
-            link = oferta.get('url') or oferta.get('link') or oferta.get('id')
-            tytul = oferta.get('title', 'Brak tytułu').strip()
+        for oferta in oferty:
+            # Wyciąganie wartości z tagów <link> oraz <title> w strukturze XML
+            link_node = oferta.find('link')
+            tytul_node = oferta.find('title')
+            
+            link = link_node.text.strip() if link_node is not None and link_node.text else None
+            tytul = tytul_node.text.strip() if tytul_node is not None and tytul_node.text else 'Brak tytułu'
             
             if not link:
                 continue
 
-            if tytul.startswith(".") or "position:" in tytul or "border-radius" in tytul:
-                continue
-
+            # Odcięcie parametrów śledzących z linku OLX (wszystko po znaku '?'), by ID było unikalne
             oferta_id = str(link).split('?')[0]
 
             if oferta_id not in wyslane_ogloszenia:
@@ -91,11 +90,14 @@ def main():
                 zapisz_do_bazy_wyslanych(oferta_id)
 
                 if not pierwsze_uruchomienie:
-                    print(f"   [WYSYŁKA] {tytul}")
+                    print(f"   [NOWA OFERTA -> WYSYŁKA] {tytul}")
+                    # Czyszczenie znaków specjalnych, które psują Markdown na Telegramie
                     czysty_tytul = tytul.replace("*", "").replace("_", "").replace("[", "").replace("]", "")
                     wiadomosc = f"🚨 *NOWE OGŁOSZENIE PRL!* 🚨\n\n📌 *{czysty_tytul}*\n🔗 [Otwórz ogłoszenie]({link})"
                     wyslij_telegram(wiadomosc)
                     licznik_wyslanych += 1
+                else:
+                    print(f"   [BAZA ZBUDOWANA] Zapisano: {tytul[:40]}...")
 
     print(f"=== KONIEC === Wysłano nowych powiadomień: {licznik_wyslanych}")
 
