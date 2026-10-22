@@ -10,13 +10,13 @@ permissions:
 
 jobs:
   run-bot:
-    runs-on: ubuntu-24.04 # Zablokowane na stabilnej wersji Ubuntu zgodnie z wytycznymi CI
+    runs-on: ubuntu-24.04
 
     steps:
     - name: Checkout repository
       uses: actions/checkout@v4
       with:
-        persist-credentials: true # Zapewnia utrzymanie uprawnień do zapisu dla git push
+        persist-credentials: true
 
     - name: Set up Python
       uses: actions/setup-python@v5
@@ -36,17 +36,17 @@ jobs:
 
     - name: Commit and Push changes
       env:
-        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }} # Wstrzyknięcie tokenu autoryzacyjnego
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
       run: |
         git config --global user.name "github-actions[bot]"
-        git config --global user.email "github-actions[bot]@users.noreply.github.com"
+        git config --global user.email "github-actions[bot]@://github.com"
         git add wyslane_oferty.txt
         
-        # Bezpieczne wykonanie commit i push przy użyciu poprawnego adresu URL z tokenem
+        # Poprawiono warunek i zamieniono 'print' na systemowe 'echo'
         if ! git diff --quiet || ! git diff --staged --quiet; then
           git commit -m "Automatyczna aktualizacja bazy ofert [skip ci]"
           git remote set-url origin "https://x-access-token:${GITHUB_TOKEN}@://github.com{{ github.repository }}.git"
           git push origin HEAD:${{ github.ref_name }}
         else
-          print("Brak nowych ofert do zapisania w bazie.")
+          echo "Brak nowych ofert do zapisania w bazie."
         fi
