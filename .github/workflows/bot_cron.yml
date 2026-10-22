@@ -1,47 +1,104 @@
-name: OLX Telegram Bot Cron
+import os
+import requests
+import xml.etree.ElementTree as ET
 
-on:
-  schedule:
-    - cron: '*/15 * * * *'
-  workflow_dispatch: 
+MOJ_CHAT_ID = "6610333161"
+URL_RAW = os.environ.get('RSS_JSON_URL')
+TELEGRAM_TOKEN = os.environ.get('TELEGRAM_TOKEN')
+BAZA_PLIK = "wyslane_oferty.txt"
 
-permissions:
-  contents: write # Wymagane uprawnienie do zapisu bazy
+def wczytaj_baze_wyslanych():
+    if not os.path.exists(BAZA_PLIK):
+        return set()
+    with open(BAZA_PLIK, "r", encoding="utf-8") as f:
+        return set(linia.strip() for linia in f if linia.strip())
 
-jobs:
-  run-bot:
-    runs-on: ubuntu-24.04
+def zapisz_do_bazy_wyslanych(identyfikator):
+    with open(BAZA_PLIK, "a", encoding="utf-8") as f:
+        f.write(f"{identyfikator}\n")
 
-    steps:
-    # 1. Pobranie kodu (z parametrem tokenu)
-    - name: Checkout repository
-      uses: actions/checkout@v4
-      with:
-        token: ${{ secrets.GITHUB_TOKEN }}
+def wyslij_telegram(tekst_wiadomosci):
+    if not TELEGRAM_TOKEN:
+        print("   [TELEGRAM ERROR] Brak zmiennej TELEGRAM_TOKEN w GitHub Secrets!")
+        return
+        
+    czysty_token = str(TELEGRAM_TOKEN).strip()
+    telegram_url = f"https://telegram.org{czysty_token}/sendMessage"
+    payload = {
+        "chat_id": MOJ_CHAT_ID, 
+        "text": tekst_wiadomosci, 
+        "parse_mode": "Markdown"
+    }
+    try:
+        res = requests.post(telegram_url, json=payload, timeout=10)
+        print(f"   [SUROWY WYNIK TELEGRAMA] -> {res.text}")
+    except Exception as e:
+        print(f"   [TELEGRAM CRASH] Błąd wysyłki: {e}")
 
-    # 2. Instalacja Pythona
-    - name: Set up Python
-      uses: actions/setup-python@v5
-      with:
-        python-version: '3.10'
+def main():
+    print("=== START BOT.PY (WERSJA DOCELOWA) ===")
+    if not URL_RAW:
+        print("Błąd krytyczny: Zmienna RSS_JSON_URL w Secrets jest pusta!")
+        return
 
-    # 3. Instalacja wymaganych bibliotek
-    - name: Install dependencies
-      run: |
-        python -m pip install --upgrade pip
-        if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+    wyslane_ogloszenia = wczytaj_baze_wyslanych()
+    print(f"Wczytano {len(wyslane_ogloszenia)} pozycji z bazy.")
 
-    # 4. Uruchomienie skryptu bota
-    - name: Run Bot Script
-      env:
-        TELEGRAM_TOKEN: ${{ secrets.TELEGRAM_TOKEN }}
-        RSS_JSON_URL: ${{ secrets.RSS_JSON_URL }}
-      run: python bot.py
+    linki_rss = [l.strip() for l in URL_RAW.split(",") if l.strip().startswith("http")]
+    licznik_wyslanych = 0
 
-    # 5. GOTOWA AKCJA: Automatyczny i bezpieczny zapis bazy danych
-    - name: Commit and Push changes
-      uses: stefanzweifel/git-auto-commit-action@v5
-      with:
-        commit_message: "Automatyczna aktualizacja bazy ofert [skip ci]"
-        file_pattern: 'wyslane_oferty.txt'
-        skip_dirty_check: false
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    }
+
+    for nr, url in enumerate(linki_rss, 1):
+        print(f"Skanuję źródło {nr}/{len(linki_rss)}...")
+        try:
+            response = requests.get(url, headers=headers, timeout=15)
+            if response.status_code != 200:
+                print(f"   -> Błąd statusu serwera: {response.status_code}")
+                continue
+            
+            root = ET.fromstring(response.content)
+        except Exception as e:
+            print(f"   -> Błąd pobierania lub parsowania XML: {e}")
+            continue
+
+        oferty = root.findall('.//item')
+        print(f"   -> Odczytano ofert z RSS: {len(oferty)}")
+
+        pierwsze_uruchomienie = len(wyslane_ogloszenia) == 0
+        if pierwsze_uruchomienie:
+            print("   [INFO] Pierwsze uruchomienie bota. Zapisuję obecne oferty bez wysyłania spamu...")
+
+        for oferta in oferty:
+            link_node = oferta.find('link')
+            tytul_node = oferta.find('title')
+            
+            link = link_node.text.strip() if link_node is not None and link_node.text else None
+            tytul = tytul_node.text.strip() if tytul_node is not None and tytul_node.text else 'Brak tytułu'
+            
+            if not link:
+                continue
+
+            # POPRAWKA: Pobieramy tekst przed znakiem '?' jako czysty string, a nie listę
+            oferta_id = str(link).split('?')[0]
+
+            if oferta_id not in wyslane_ogloszenia:
+                wyslane_ogloszenia.add(oferta_id)
+                zapisz_do_bazy_wyslanych(oferta_id)
+
+                if not pierwsze_uruchomienie:
+                    print(f"   [NOWA OFERTA -> WYSYŁKA] {tytul}")
+                    czysty_tytul = tytul.replace("*", "").replace("_", "").replace("[", "").replace("]", "")
+                    wiadomosc = f"🚨 *NOWE OGŁOSZENIE PRL!* 🚨\n\n📌 *{czysty_tytul}*\n🔗 [Otwórz ogłoszenie]({link})"
+                    wyslij_telegram(wiadomosc)
+                    licznik_wyslanych += 1
+                else:
+                    print(f"   [BAZA ZBUDOWANA] Zapisano: {tytul[:40]}...")
+
+    print(f"=== KONIEC === Wysłano nowych powiadomień: {licznik_wyslanych}")
+
+if __name__ == "__main__":
+    main()
+
