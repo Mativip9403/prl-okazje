@@ -28,6 +28,34 @@ jobs:
         python -m pip install --upgrade pip
         if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
 
+    # BEZWZGLĘDNA NAPRAWA W LOCIE: Wycinamy każdą możliwą literówkę z adresu URL bezpośrednio w pamięci serwera
+    - name: Force Fix Script
+      run: |
+        python -c "
+        import os
+        with open('bot.py', 'r', encoding='utf-8') as f:
+            kod = f.read()
+        
+        # Całkowicie podmieniamy funkcję wyslij_telegram na wersję pancerną, bez względu na to co jest w bot.py
+        stara_funkcja_start = kod.find('def wyslij_telegram')
+        stara_funkcja_end = kod.find('def main')
+        
+        if stara_funkcja_start != -1 and stara_funkcja_end != -1:
+            nowa_funkcja = '''def wyslij_telegram(tekst_wiadomosci):
+            url = \"https://telegram.org\"
+            payload = {\"chat_id\": \"6610333161\", \"text\": tekst_wiadomosci, \"parse_mode\": \"Markdown\"}
+            try:
+                res = requests.post(url, json=payload, timeout=12)
+                print(f\"   [WYNIK TELEGRAMA] -> {res.text}\")
+            except Exception as e:
+                print(f\"   [CRASH] {e}\")\n\n'''
+            kod = kod[:stara_funkcja_start] + nowa_funkcja + kod[stara_funkcja_end:]
+            
+        with open('bot.py', 'w', encoding='utf-8') as f:
+            f.write(kod)
+        print('--- PLIK BOT.PY ZOSTAŁ BEZWZGLĘDNIE NAPRAWIONY NA SERWERZE ---')
+        "
+
     - name: Run Bot Script
       env:
         RSS_JSON_URL: ${{ secrets.RSS_JSON_URL }}
