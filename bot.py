@@ -22,21 +22,34 @@ def wyslij_telegram(tekst_wiadomosci):
         print("   [TELEGRAM ERROR] Brak zmiennej TELEGRAM_TOKEN w GitHub Secrets!")
         return
         
-    czysty_token = str(TELEGRAM_TOKEN).strip()
+    # OCHRONA PRZED BŁĘDAMI WPISU: Wyciągamy TYLKO cyfry, litery i dwukropek z tokenu
+    surowy_token = str(TELEGRAM_TOKEN).strip()
+    
+    # Usuwamy wszelkie pozostałości adresów www, jeśli przypadkiem zapisały się w Secrets
+    if "telegram.org" in surowy_token:
+        surowy_token = surowy_token.replace("https://", "").replace("http://", "").replace("telegram.org", "")
+    
+    # Czyszczenie z ewentualnych ukośników lub gwiazdek z logów błędu
+    czysty_token = "".join(c for c in surowy_token if c.isalnum() or c in [':', '-', '_']).strip()
+    
+    # Wymuszony, sztywny adres URL bez możliwości doklejenia złego hosta
     telegram_url = f"https://telegram.org{czysty_token}/sendMessage"
+    
     payload = {
-        "chat_id": MOJ_CHAT_ID, 
+        "chat_id": str(MOJ_CHAT_ID).strip(), 
         "text": tekst_wiadomosci, 
         "parse_mode": "Markdown"
     }
+    
     try:
-        res = requests.post(telegram_url, json=payload, timeout=10)
+        res = requests.post(telegram_url, json=payload, timeout=12)
         print(f"   [SUROWY WYNIK TELEGRAMA] -> {res.text}")
     except Exception as e:
-        print(f"   [TELEGRAM CRASH] Błąd wysyłki: {e}")
+        print(f"   [TELEGRAM CRASH KRYTYCZNY] Adres: {telegram_url.replace(czysty_token, 'UKRYTY_TOKEN')}")
+        print(f"   [TELEGRAM CRASH] Szczegóły błędu wysyłki: {e}")
 
 def main():
-    print("=== START BOT.PY (WERSJA DOCELOWA) ===")
+    print("=== START BOT.PY (WERSJA BEZPIECZNA API) ===")
     if not URL_RAW:
         print("Błąd krytyczny: Zmienna RSS_JSON_URL w Secrets jest pusta!")
         return
@@ -67,9 +80,9 @@ def main():
         oferty = root.findall('.//item')
         print(f"   -> Odczytano ofert z RSS: {len(oferty)}")
 
-        pierwsze_uruchomienie = len(wyslane_ogloszenia) == 0
-        if pierwsze_uruchomienie:
-            print("   [INFO] Pierwsze uruchomienie bota. Zapisuję obecne oferty bez wysyłania spamu...")
+        # Do celów testowych: jeśli baza ma mało wpisów, pozwalamy wysłać, 
+        # dla ciągłego działania zmień na: pierwsze_uruchomienie = len(wyslane_ogloszenia) == 0
+        pierwsze_uruchomienie = False 
 
         for oferta in oferty:
             link_node = oferta.find('link')
@@ -81,7 +94,7 @@ def main():
             if not link:
                 continue
 
-            # POPRAWKA: Pobieramy tekst przed znakiem '?' jako czysty string, a nie listę
+            # Pobieranie czystego linku bez parametrów trackingowych
             oferta_id = str(link).split('?')[0]
 
             if oferta_id not in wyslane_ogloszenia:
@@ -101,3 +114,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
