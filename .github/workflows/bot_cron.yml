@@ -2,7 +2,7 @@ name: OLX Telegram Bot Cron
 
 on:
   schedule:
-    # Uruchamiaj co 15 minut (Możesz zmienić np. na '*/10 * * * *' dla 10 minut)
+    # Uruchamiaj co 15 minut
     - cron: '*/15 * * * *'
   workflow_dispatch: # Pozwala na ręczne uruchomienie bota przyciskiem na GitHubie
 
@@ -20,7 +20,6 @@ jobs:
 
     # 2. Instalacja Pythona
     - name: Set up Python
-      uses: actions/configure-pages@v5 # Służy do konfiguracji środowiska bazowego lub bezpośrednio:
       uses: actions/setup-python@v5
       with:
         python-version: '3.10'
