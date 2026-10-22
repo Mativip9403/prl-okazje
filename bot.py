@@ -49,26 +49,38 @@ def main():
         try:
             response = requests.get(url, timeout=15)
             if response.status_code != 200:
+                print(f"   -> Błąd statusu: {response.status_code}")
                 continue
             dane = response.json()
-        except:
+        except Exception as e:
+            print(f"   -> Błąd pobierania JSON: {e}")
             continue
 
         oferty = dane.get('items', [])
+        print(f"   -> Odczytano ofert z JSON: {len(oferty)}")
+        
+        # ==========================================
+        # DEBUGOWANIE: Pokazuje dokładną strukturę, żebyśmy zobaczyli nazwy pól
+        if oferty:
+            print("\n🚨 [DEBUG] SUROWA STRUKTURA PIERWSZEJ OFERTY:")
+            import json
+            print(json.dumps(oferty[0], indent=4, ensure_ascii=False))
+            print("🚨 [DEBUG] KONIEC PODGLĄDU\n")
+        # ==========================================
+
         pierwsze_uruchomienie = len(wyslane_ogloszenia) == 0
 
         for oferta in oferty:
-            link = oferta.get('url') or oferta.get('link')
+            # Próba wyciągnięcia czegokolwiek, co może być linkiem lub unikalnym ID
+            link = oferta.get('url') or oferta.get('link') or oferta.get('id') or oferta.get('id_ogloszenia')
             tytul = oferta.get('title', 'Brak tytułu').strip()
             
             if not link:
                 continue
 
-            # Filtr śmieci CSS
             if tytul.startswith(".") or "position:" in tytul or "border-radius" in tytul:
                 continue
 
-            # Unikalny identyfikator oferty (link bez parametrów)
             oferta_id = str(link).split('?')[0]
 
             if oferta_id not in wyslane_ogloszenia:
