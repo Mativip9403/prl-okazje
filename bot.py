@@ -6,6 +6,9 @@ MOJ_CHAT_ID = "6610333161"
 URL_RAW = os.environ.get('RSS_JSON_URL')
 BAZA_PLIK = "wyslane_oferty.txt"
 
+# Token wpisany bezpośrednio w adres - zero ryzyka błędu hosta
+TELEGRAM_URL = "https://telegram.org"
+
 def wczytaj_baze_wyslanych():
     if not os.path.exists(BAZA_PLIK):
         return set()
@@ -17,23 +20,19 @@ def zapisz_do_bazy_wyslanych(identyfikator):
         f.write(f"{identyfikator}\n")
 
 def wyslij_telegram(tekst_wiadomosci):
-    # JEDEN CAŁKOWITY LINK BEZ SKŁADANIA - Piorunująco bezpieczny
-    telegram_url = "https://telegram.org"
-    
     payload = {
         "chat_id": str(MOJ_CHAT_ID).strip(), 
         "text": tekst_wiadomosci, 
         "parse_mode": "Markdown"
     }
-    
     try:
-        res = requests.post(telegram_url, json=payload, timeout=12)
+        res = requests.post(TELEGRAM_URL, json=payload, timeout=12)
         print(f"   [SUROWY WYNIK TELEGRAMA] -> {res.text}")
     except Exception as e:
         print(f"   [TELEGRAM CRASH KRYTYCZNY] Szczegóły: {e}")
 
 def main():
-    print("=== START BOT.PY (FINALNA WERSJA HARDCODE URL) ===")
+    print("=== START BOT.PY (FINALNA WERSJA PROD) ===")
     if not URL_RAW:
         print("Błąd krytyczny: Zmienna RSS_JSON_URL w Secrets jest pusta!")
         return
@@ -61,9 +60,11 @@ def main():
         oferty = root.findall('.//item')
         print(f"   -> Odczytano ofert z RSS: {len(oferty)}")
 
-        # JEDNORAZOWY TEST: ustawione na False, aby wysłać powiadomienia na telefon
-        # Gdy wiadomości dojdą, zmień na: pierwsze_uruchomienie = len(wyslane_ogloszenia) == 0
-        pierwsze_uruchomienie = False
+        # UNIKANIE SPAMU: Jeśli plik bazy jest pusty, bot zapisze obecne 25 ofert bez wysyłania.
+        # Jeśli chcesz przetestować wysyłkę na żywo, zmień poniższe True na False!
+        pierwsze_uruchomienie = len(wyslane_ogloszenia) == 0
+        if pierwsze_uruchomienie:
+            print("   [INFO] Pierwsze uruchomienie bota. Buduję bazę danych bez spamu...")
 
         for oferta in oferty:
             link_node = oferta.find('link')
@@ -75,12 +76,11 @@ def main():
             if not link:
                 continue
 
-            # FILTR ANTY-SPAM CSS
+            # Filtr śmieci CSS z OLX
             if tytul.startswith(".") or "position:" in tytul or "border-radius" in tytul:
-                print("   [FILTR CSS] Pominięto śmieciowy kod OLX.")
                 continue
 
-            # Pobieranie czystego linku (zabezpieczenie unhashable type)
+            # Pobieranie linku jako unikalny tekst bez parametrów trackingowych
             oferta_id = str(link).split('?')[0]
 
             if oferta_id not in wyslane_ogloszenia:
@@ -93,8 +93,11 @@ def main():
                     wiadomosc = f"🚨 *NOWE OGŁOSZENIE PRL!* 🚨\n\n📌 *{czysty_tytul}*\n🔗 [Otwórz ogłoszenie]({link})"
                     wyslij_telegram(wiadomosc)
                     licznik_wyslanych += 1
+                else:
+                    print(f"   [BAZA ZBUDOWANA] Zapisano: {tytul[:40]}...")
 
     print(f"=== KONIEC === Wysłano nowych powiadomień: {licznik_wyslanych}")
 
 if __name__ == "__main__":
     main()
+
