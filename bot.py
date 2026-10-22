@@ -1,6 +1,7 @@
 import os
 import requests
 import xml.etree.ElementTree as ET
+import re
 
 MOJ_CHAT_ID = "6610333161"
 URL_RAW = os.environ.get('RSS_JSON_URL')
@@ -22,9 +23,17 @@ def wyslij_telegram(tekst_wiadomosci):
         print("   [TELEGRAM ERROR] Brak zmiennej TELEGRAM_TOKEN w GitHub Secrets!")
         return
         
-    czysty_token = str(TELEGRAM_TOKEN).strip()
+    # ROZWIĄZANIE PROBLEMU: Wyciągamy z sekretu wyłącznie poprawny token bota
+    surowy_token = str(TELEGRAM_TOKEN).strip()
     
-    # Bezpieczne składanie linku API
+    # Wycinamy adres www, jeśli przypadkiem zapisał się w Secrets
+    surowy_token = surowy_token.replace("https://", "").replace("http://", "")
+    surowy_token = surowy_token.replace("telegram.org", "").replace("www.", "")
+    
+    # Usuwamy gwiazdki i inne znaki z logów błędów, zostawiamy tylko cyfry, litery, dwukropek i myślnik
+    czysty_token = "".join(c for c in surowy_token if c.isalnum() or c in [':', '-', '_']).strip()
+    
+    # Składamy idealny, sztywny adres URL
     telegram_url = f"https://telegram.org{czysty_token}/sendMessage"
     
     payload = {
@@ -40,7 +49,7 @@ def wyslij_telegram(tekst_wiadomosci):
         print(f"   [TELEGRAM CRASH KRYTYCZNY] Szczegóły błędu wysyłki: {e}")
 
 def main():
-    print("=== START BOT.PY (WERSJA BEZPIECZNA URL) ===")
+    print("=== START BOT.PY (WERSJA ODPORNA NA BŁĘDY) ===")
     if not URL_RAW:
         print("Błąd krytyczny: Zmienna RSS_JSON_URL w Secrets jest pusta!")
         return
@@ -71,8 +80,8 @@ def main():
         oferty = root.findall('.//item')
         print(f"   -> Odczytano ofert z RSS: {len(oferty)}")
 
-        # Dla ciągłego działania (gdy już przetestujesz wysyłkę) zmień na:
-        # pierwsze_uruchomienie = len(wyslane_ogloszenia) == 0
+        # TRYB TESTOWY: zmienione na False, aby przepchnąć te zaległe ogłoszenia na telefon
+        # Po udanym teście zmień na: pierwsze_uruchomienie = len(wyslane_ogloszenia) == 0
         pierwsze_uruchomienie = False
 
         for oferta in oferty:
@@ -85,7 +94,12 @@ def main():
             if not link:
                 continue
 
-            # POPRAWKA: Pobieramy tylko pierwszy element z rozbicia tekstowego (string)
+            # FILTR ANTY-SPAM CSS: Jeśli tytuł to śmieciowy kod CSS, pomiń ogłoszenie
+            if tytul.startswith(".") or "position:absolute" in tytul or "border-radius" in tytul:
+                print("   [FILTR CSS] Pominięto kod reklamowy/śmieciowy z OLX.")
+                continue
+
+            # Pobieranie czystego linku bez parametrów jako ciąg znaków
             oferta_id = str(link).split('?')[0]
 
             if oferta_id not in wyslane_ogloszenia:
@@ -93,7 +107,7 @@ def main():
                 zapisz_do_bazy_wyslanych(oferta_id)
 
                 if not pierwsze_uruchomienie:
-                    print(f"   [NOWA OFERTA -> WYSYŁKA] {tytul}")
+                    print(f"   [NOWA OFERTA -> WYSYŁKA] {tytul[:50]}...")
                     czysty_tytul = tytul.replace("*", "").replace("_", "").replace("[", "").replace("]", "")
                     wiadomosc = f"🚨 *NOWE OGŁOSZENIE PRL!* 🚨\n\n📌 *{czysty_tytul}*\n🔗 [Otwórz ogłoszenie]({link})"
                     wyslij_telegram(wiadomosc)
@@ -105,3 +119,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
